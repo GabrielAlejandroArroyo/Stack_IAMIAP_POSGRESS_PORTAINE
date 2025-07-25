@@ -61,7 +61,7 @@ if %errorlevel% equ 0 (
     echo • Keycloak: http://localhost:8080
     echo • WSO2 AM Publisher: https://localhost:9443/publisher
     echo • PostgreSQL: localhost:5432
-    echo • Portainer: http://%PORTAINER_HOST%:%PORTAINER_PORT%
+    echo • Portainer: http://localhost:9000
     echo.
     echo Para ver logs: docker-compose logs -f
     echo Para detener: docker-compose down
