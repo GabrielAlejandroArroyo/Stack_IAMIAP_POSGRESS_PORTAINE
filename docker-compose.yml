@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  # Servicio de PostgreSQL para Keycloak
+  postgres:
+    container_name: postgres
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"  # Puerto de PostgreSQL
+    volumes:
+      - postgres_data:/var/lib/postgresql/data  # Persistencia de datos de PostgreSQL
+    networks:
+      - api-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Servicio de Keycloak para autenticación y gestión de identidades
+  keycloak:
+    container_name: keycloak
+    image: keycloak/keycloak:22.0.3-0
+    command: start-dev --db=postgres --db-url=jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB} --db-username=${POSTGRES_USER} --db-password=${POSTGRES_PASSWORD}
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}  # Usuario administrador por defecto
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}  # Contraseña del administrador
+    volumes:
+      - keycloak_data:/opt/keycloak/data  # Persistencia de datos de Keycloak
+    ports:
+      - "8080:8080"  # Puerto de acceso a Keycloak
+    networks:
+      - api-net  # Red interna para comunicación entre servicios
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Servicio de WSO2 API Manager
+  wso2am:
+    container_name: wso2am
+    image: wso2/wso2am:4.5.0-rocky
+    environment:
+      JAVA_OPTS: ${JAVA_OPTS}  # Configuración de memoria Java
+      KEYCLOAK_URL: ${KEYCLOAK_URL}  # Endpoint de Keycloak para federación
+    volumes:
+      - wso2am_data:/home/wso2carbon/wso2am-4.5.0/repository/deployment/server  # Persistencia de datos de WSO2 AM
+    ports:
+      - "9443:9443"  # Puerto seguro para acceso a WSO2 AM
+    depends_on:
+      - keycloak  # Asegura que Keycloak inicie antes
+    networks:
+      - api-net  # Red interna compartida
+
+  # Servicio de Portainer para gestión web de Docker
+  portainer:
+    container_name: portainer
+    image: portainer/portainer-ce:latest
+    environment:
+      PORTAINER_ADMIN_USER: ${PORTAINER_ADMIN_USER}
+      PORTAINER_ADMIN_PASSWORD: ${PORTAINER_ADMIN_PASSWORD}
+    ports:
+      - "${PORTAINER_PORT}:9000"  # Puerto de acceso a Portainer
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock  # Acceso al socket de Docker
+      - portainer_data:/data  # Persistencia de datos de Portainer
+    networks:
+      - api-net
+    restart: unless-stopped
+
+# Definición de volúmenes nombrados para persistencia
+volumes:
+  keycloak_data:
+    external: true
+  wso2am_data:
+    external: true
+  postgres_data:
+    external: true
+  portainer_data:
+    external: true
+
+# Definición de la red interna para aislar el tráfico entre servicios
+networks:
+  api-net:
+    driver: bridge 
